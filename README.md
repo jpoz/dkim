@@ -1,4 +1,1 @@
-dkim
-====
-
-DKIM library for Go
+DKIM signing for Go

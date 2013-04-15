@@ -2,18 +2,12 @@ package dkim
 
 import (
 	"crypto"
-	"crypto/sha256"
+	_ "crypto/sha256"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 )
-
-func init() {
-	// We only invoke New() to make sure the sha256
-	// package is initialized and the hash registered
-	sha256.New()
-}
 
 type Conf map[string]string
 

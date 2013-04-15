@@ -13,8 +13,8 @@ var utilSampleEML []byte = []byte("A: X\r\n" +
 	"\r\n" +
 	"\r\n")
 
-func Test_ReadEML(t *testing.T) {
-	header, body, err := ReadEML(utilSampleEML)
+func TestSplitEML(t *testing.T) {
+	header, body, err := splitEML(utilSampleEML)
 	if err != nil {
 		t.Fatal("error not nil", err)
 	}

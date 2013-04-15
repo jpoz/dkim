@@ -125,7 +125,7 @@ func (d *DKIM) signature(header, body []byte) (string, error) {
 }
 
 func (d *DKIM) Sign(eml []byte) (signed []byte, err error) {
-	header, body, err := ReadEML(eml)
+	header, body, err := splitEML(eml)
 	if err != nil {
 		return
 	}

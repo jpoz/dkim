@@ -88,7 +88,7 @@ func TestCanonicalBody(t *testing.T) {
 	conf[CanonicalizationKey] = "relaxed/relaxed"
 	dkim, _ = New(conf, dkimSamplePEMData)
 
-	_, body, err := ReadEML([]byte(dkimSampleEML1))
+	_, body, err := splitEML([]byte(dkimSampleEML1))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestCanonicalBody(t *testing.T) {
 		t.Fatal(x)
 	}
 
-	_, body, err = ReadEML([]byte(dkimSampleEML2))
+	_, body, err = splitEML([]byte(dkimSampleEML2))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +110,7 @@ func TestCanonicalBody(t *testing.T) {
 		t.Fatal(x)
 	}
 
-	_, body, err = ReadEML([]byte(dkimSampleEML3))
+	_, body, err = splitEML([]byte(dkimSampleEML3))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +126,7 @@ func TestCanonicalBodyHash(t *testing.T) {
 
 	dkim, _ := New(conf, dkimSamplePEMData)
 
-	_, body2, err := ReadEML([]byte(dkimSampleEML2))
+	_, body2, err := splitEML([]byte(dkimSampleEML2))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +135,7 @@ func TestCanonicalBodyHash(t *testing.T) {
 		t.Fatal(x)
 	}
 
-	_, body, err := ReadEML([]byte(dkimSampleEML3))
+	_, body, err := splitEML([]byte(dkimSampleEML3))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +172,7 @@ func dkimSignable() *DKIM {
 }
 
 func TestSignableHeaderBlock(t *testing.T) {
-	header, body, err := ReadEML([]byte(dkimSampleEML3))
+	header, body, err := splitEML([]byte(dkimSampleEML3))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,7 +191,7 @@ func TestSignableHeaderBlock(t *testing.T) {
 }
 
 func TestSignature(t *testing.T) {
-	header, body, err := ReadEML([]byte(dkimSampleEML3))
+	header, body, err := splitEML([]byte(dkimSampleEML3))
 	if err != nil {
 		t.Fatal(err)
 	}

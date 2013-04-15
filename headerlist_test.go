@@ -14,7 +14,7 @@ var headerListSample []byte = []byte("A: X\r\n" +
 	"\r\n")
 
 func TestParseHeaderList(t *testing.T) {
-	header, _, err := ReadEML(headerListSample)
+	header, _, err := splitEML(headerListSample)
 	if err != nil {
 		t.Fatal("error not nil", err)
 	}
@@ -58,7 +58,7 @@ func TestFields(t *testing.T) {
 }
 
 func TestCanonical2(t *testing.T) {
-	header, _, err := ReadEML(headerListSample)
+	header, _, err := splitEML(headerListSample)
 	if err != nil {
 		t.Fatal(err)
 	}

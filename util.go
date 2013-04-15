@@ -1,14 +1,14 @@
 package dkim
 
 import (
-	"fmt"
-	"strings"
+	"bytes"
+	"errors"
 )
 
-func ReadEML(eml string) (header string, body string, err error) {
-	c := strings.SplitN(eml, "\r\n\r\n", 2)
-	if len(c) == 2 {
+func ReadEML(eml []byte) (header, body []byte, err error) {
+	if c := bytes.SplitN(eml, []byte("\r\n\r\n"), 2); len(c) == 2 {
 		return c[0], c[1], nil
 	}
-	return "", "", fmt.Errorf("could not read header block")
+	err = errors.New("could not read header block")
+	return
 }

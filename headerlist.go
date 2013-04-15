@@ -1,6 +1,7 @@
 package dkim
 
 import (
+	"bytes"
 	"fmt"
 	"regexp"
 	"strings"
@@ -8,16 +9,17 @@ import (
 
 type HeaderList []*Header
 
-func ParseHeaderList(header string) (HeaderList, error) {
-	lines := strings.Split(header, "\r\n")
+var continuedHeaderRx = regexp.MustCompile(`^[ \t]`)
+
+func ParseHeaderList(header []byte) (HeaderList, error) {
+	lines := bytes.Split(header, []byte("\r\n"))
 	list := make(HeaderList, 0, len(lines))
 	lastHeader := -1
-	continuedRx := regexp.MustCompile(`^[ \t]`)
 	for _, v := range lines {
-		if continuedRx.MatchString(v) && lastHeader >= 0 {
-			list[lastHeader].RawValue += "\r\n" + v
+		if continuedHeaderRx.Match(v) && lastHeader >= 0 {
+			list[lastHeader].RawValue += "\r\n" + string(v)
 		} else {
-			h, err := ParseHeader(v)
+			h, err := ParseHeader(string(v))
 			if err == nil {
 				lastHeader = len(list)
 				list = append(list, h)
@@ -50,10 +52,10 @@ func (l HeaderList) Fields() string {
 	return strings.Join(a, ":")
 }
 
-func (l HeaderList) Canonical(c Canonicalization) string {
+func (l HeaderList) Canonical(relaxed bool) string {
 	a := make([]string, 0, len(l))
 	for _, v := range l {
-		a = append(a, v.Canonical(c))
+		a = append(a, v.Canonical(relaxed))
 	}
 	return strings.Join(a, "\r\n") + "\r\n"
 }

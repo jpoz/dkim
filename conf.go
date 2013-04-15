@@ -28,17 +28,8 @@ const (
 	CopiedFieldsKey     = "z"
 )
 
-type Algorithm string
-
 const (
 	AlgorithmSHA256 = "rsa-sha256"
-)
-
-type Canonicalization uint
-
-const (
-	SimpleCanonicalization = iota
-	RelaxedCanonicalization
 )
 
 func NewConf(domain string, selector string) (Conf, error) {
@@ -62,7 +53,7 @@ func NewConf(domain string, selector string) (Conf, error) {
 	}, nil
 }
 
-func (c Conf) IsValid() bool {
+func (c Conf) Validate() error {
 	minRequired := []string{
 		VersionKey,
 		AlgorithmKey,
@@ -74,45 +65,43 @@ func (c Conf) IsValid() bool {
 	}
 	for _, v := range minRequired {
 		if _, ok := c[v]; !ok {
-			return false
+			return fmt.Errorf("key '%s' missing", v)
 		}
 	}
-	return true
+	return nil
 }
 
-func (c Conf) Algorithm() Algorithm {
-	a := c[AlgorithmKey]
-	if a != "" {
-		return Algorithm(a)
+func (c Conf) Algorithm() string {
+	if a := c[AlgorithmKey]; a != "" {
+		return a
 	}
 	return AlgorithmSHA256
 }
 
 func (c Conf) Hash() crypto.Hash {
-	a := c.Algorithm()
-	if a == AlgorithmSHA256 {
+	if c.Algorithm() == AlgorithmSHA256 {
 		return crypto.SHA256
 	}
 	panic("algorithm not implemented")
 }
 
-func (c Conf) HeaderCanonicalization() Canonicalization {
+func (c Conf) RelaxedHeader() bool {
 	can := strings.ToLower(c[CanonicalizationKey])
 	if strings.HasPrefix(can, "relaxed") {
-		return RelaxedCanonicalization
+		return true
 	}
-	return SimpleCanonicalization
+	return false
 }
 
-func (c Conf) BodyCanonicalization() Canonicalization {
+func (c Conf) RelaxedBody() bool {
 	can := strings.ToLower(c[CanonicalizationKey])
 	if strings.HasSuffix(can, "/relaxed") {
-		return RelaxedCanonicalization
+		return true
 	}
-	return SimpleCanonicalization
+	return false
 }
 
-func (c Conf) Join() string {
+func (c Conf) String() string {
 	keyOrder := []string{
 		VersionKey,
 		AlgorithmKey,

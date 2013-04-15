@@ -4,14 +4,14 @@ import (
 	"testing"
 )
 
-var headerListSample string = "A: X\r\n" +
+var headerListSample []byte = []byte("A: X\r\n" +
 	"B : Y\t\r\n" +
 	"\tZ  \r\n" +
 	"\r\n" +
 	" C \r\n" +
 	"D \t E\r\n" +
 	"\r\n" +
-	"\r\n"
+	"\r\n")
 
 func TestParseHeaderList(t *testing.T) {
 	header, _, err := ReadEML(headerListSample)
@@ -88,11 +88,11 @@ func TestCanonical2(t *testing.T) {
 	if len(list) != 2 {
 		t.Fatal("wrong header list count", len(list))
 	}
-	simple := list.Canonical(SimpleCanonicalization)
+	simple := list.Canonical(false)
 	if simple != "A: X\r\nB : Y\t\r\n\tZ  \r\n" {
 		t.Fatal("wrong simple canonical value", simple)
 	}
-	relaxed := list.Canonical(RelaxedCanonicalization)
+	relaxed := list.Canonical(true)
 	if relaxed != "a:X\r\nb:Y Z\r\n" {
 		t.Fatal("wrong relaxed canonical value", relaxed)
 	}

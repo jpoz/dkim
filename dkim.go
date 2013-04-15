@@ -6,7 +6,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
-	"fmt"
+	"errors"
 	"regexp"
 	"strings"
 )
@@ -27,24 +27,20 @@ var StdSignableHeaders = []string{
 }
 
 type DKIM struct {
-	emlData         string
 	signableHeaders []string
 	conf            Conf
 	privateKey      *rsa.PrivateKey
 }
 
-func New(emlData string, conf Conf, keyPEM []byte) (*DKIM, error) {
-	if emlData == "" {
-		return nil, fmt.Errorf("invalid eml data")
+func New(conf Conf, keyPEM []byte) (d *DKIM, err error) {
+	err = conf.Validate()
+	if err != nil {
+		return
 	}
-	if !conf.IsValid() {
-		return nil, fmt.Errorf("invalid dkim configuration")
-	}
-	if keyPEM == nil {
-		return nil, fmt.Errorf("invalid key PEM data")
+	if len(keyPEM) == 0 {
+		return nil, errors.New("invalid key PEM data")
 	}
 	dkim := &DKIM{
-		emlData:         emlData,
 		signableHeaders: StdSignableHeaders,
 		conf:            conf,
 	}
@@ -58,44 +54,42 @@ func New(emlData string, conf Conf, keyPEM []byte) (*DKIM, error) {
 	return dkim, nil
 }
 
-func (d *DKIM) canonicalBody() string {
-	_, b, _ := ReadEML(d.emlData)
-	if d.conf.BodyCanonicalization() == RelaxedCanonicalization {
-		if b == "" {
-			return ""
+func (d *DKIM) canonicalBody(body []byte) []byte {
+	if d.conf.RelaxedBody() {
+		if len(body) == 0 {
+			return nil
 		}
 		// Reduce WSP sequences to single WSP
 		rx := regexp.MustCompile(`[ \t]+`)
-		b = rx.ReplaceAllString(b, " ")
+		body = rx.ReplaceAll(body, []byte(" "))
 
 		// Ignore all whitespace at end of lines.
 		// Implementations MUST NOT remove the CRLF
 		// at the end of the line
 		rx2 := regexp.MustCompile(` \r\n`)
-		b = rx2.ReplaceAllString(b, "\r\n")
+		body = rx2.ReplaceAll(body, []byte("\r\n"))
 	} else {
-		if b == "" {
-			return "\r\n"
+		if len(body) == 0 {
+			return []byte("\r\n")
 		}
 	}
 
 	// Ignore all empty lines at the end of the message body
 	rx3 := regexp.MustCompile(`[ \r\n]*\z`)
-	b = rx3.ReplaceAllString(b, "")
+	body = rx3.ReplaceAll(body, []byte(""))
 
-	return b + "\r\n"
+	return append(body, '\r', '\n')
 }
 
-func (d *DKIM) canonicalBodyHash() []byte {
-	b := d.canonicalBody()
+func (d *DKIM) canonicalBodyHash(body []byte) []byte {
+	b := d.canonicalBody(body)
 	digest := d.conf.Hash().New()
 	digest.Write([]byte(b))
 
 	return digest.Sum(nil)
 }
 
-func (d *DKIM) signableHeaderBlock() string {
-	header, _, _ := ReadEML(d.emlData)
+func (d *DKIM) signableHeaderBlock(header, body []byte) string {
 	headerList, _ := ParseHeaderList(header)
 
 	signableHeaderList := make(HeaderList, 0, len(headerList)+1)
@@ -106,25 +100,22 @@ func (d *DKIM) signableHeaderBlock() string {
 		}
 	}
 
-	d.conf[BodyHashKey] = base64.StdEncoding.EncodeToString(d.canonicalBodyHash())
+	d.conf[BodyHashKey] = base64.StdEncoding.EncodeToString(d.canonicalBodyHash(body))
 	d.conf[FieldsKey] = signableHeaderList.Fields()
 
 	signableHeaderList = append(signableHeaderList, &Header{
 		SignatureHeaderKey,
-		d.conf.Join(),
+		d.conf.String(),
 	})
 
 	// According to RFC6376 http://tools.ietf.org/html/rfc6376#section-3.7
 	// the DKIM header must be inserted without a trailing <CRLF>.
 	// That's why we have to trim the space from the canonical header.
-	return strings.TrimSpace(signableHeaderList.Canonical(d.conf.HeaderCanonicalization()))
+	return strings.TrimSpace(signableHeaderList.Canonical(d.conf.RelaxedHeader()))
 }
 
-func (d *DKIM) signature() (string, error) {
-	if d.privateKey == nil {
-		return "", fmt.Errorf("no private key loaded")
-	}
-	block := d.signableHeaderBlock()
+func (d *DKIM) signature(header, body []byte) (string, error) {
+	block := d.signableHeaderBlock(header, body)
 	hash := d.conf.Hash()
 	digest := hash.New()
 	digest.Write([]byte(block))
@@ -137,22 +128,26 @@ func (d *DKIM) signature() (string, error) {
 	return base64.StdEncoding.EncodeToString(sig), nil
 }
 
-func (d *DKIM) SignedEML() (string, error) {
-	sig, err := d.signature()
+func (d *DKIM) Sign(eml []byte) (signed []byte, err error) {
+	header, body, err := ReadEML(eml)
 	if err != nil {
-		return "", err
+		return
+	}
+	sig, err := d.signature(header, body)
+	if err != nil {
+		return
 	}
 	d.conf[SignatureDataKey] = sig
-	header, body, err := ReadEML(d.emlData)
-	if err != nil {
-		return "", err
-	}
 	headerList, _ := ParseHeaderList(header)
 
 	// Append the signature header. Keep in mind these are raw values,
 	// so we add a <SP> character before the key-value list
-	headerList = append(headerList, &Header{SignatureHeaderKey, " " + d.conf.Join()})
-	header = headerList.Canonical(SimpleCanonicalization)
+	headerList = append(headerList, &Header{SignatureHeaderKey, " " + d.conf.String()})
+	signedHeader := headerList.Canonical(false)
 
-	return strings.Join([]string{header, body}, "\r\n"), nil
+	signed = []byte(strings.Join([]string{
+		signedHeader,
+		string(body),
+	}, "\r\n"))
+	return
 }

@@ -47,14 +47,14 @@ func TestRelaxedValue(t *testing.T) {
 
 func TestCanonical(t *testing.T) {
 	h := Header{" C\t", " \tA \t   b "}
-	can := h.Canonical(RelaxedCanonicalization)
+	can := h.Canonical(true)
 	if can != "c:A b" {
 		t.Fatal("wrong relaxed canonical value", can)
 	}
 	k := " C\t"
 	v := " \tA \t   b "
 	h = Header{k, v}
-	can = h.Canonical(SimpleCanonicalization)
+	can = h.Canonical(false)
 	if can != k+":"+v {
 		t.Fatal("wrong simple canonical value", can)
 	}

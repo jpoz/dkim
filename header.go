@@ -35,8 +35,8 @@ func (h *Header) RelaxedValue() string {
 	return strings.TrimSpace(regexp.MustCompile(`\s+`).ReplaceAllString(h.RawValue, " "))
 }
 
-func (h *Header) Canonical(c Canonicalization) string {
-	if c == RelaxedCanonicalization {
+func (h *Header) Canonical(relaxed bool) string {
+	if relaxed {
 		return h.RelaxedKey() + ":" + h.RelaxedValue()
 	}
 	return h.RawKey + ":" + h.RawValue

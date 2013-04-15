@@ -2,7 +2,6 @@ package dkim
 
 import (
 	"encoding/base64"
-	"strings"
 	"testing"
 )
 
@@ -56,11 +55,113 @@ JXgoYIJoHZKy/ypisfECQQC9FxTwEfzFLTANQVnUQKEbRUk3slaigQb3QoBKXOZr
 oCyn+rxDcflW1RbZnsilaMbpN/PMw/IbqRjXA2Tg3Ty6
 -----END RSA PRIVATE KEY-----`)
 
-var dkimSignable *DKIM = func() *DKIM {
+func TestNew(t *testing.T) {
+	dkim, err := New(Conf{}, nil)
+	if err == nil {
+		t.Fatal(err)
+	}
+	if dkim != nil {
+		t.Fatal(dkim)
+	}
+	conf, err := NewConf("domain", "selector")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dkim, err = New(conf, nil)
+	if err == nil {
+		t.Fatal(err)
+	}
+	dkim, err = New(conf, dkimSamplePEMData)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCanonicalBody(t *testing.T) {
+	dkim := &DKIM{}
+	body := dkim.canonicalBody([]byte(""))
+	if x := string(body); x != "\r\n" {
+		t.Fatal("uninitialized struct should yield CRLF body", x)
+	}
+
+	conf, _ := NewConf("domain", "selector")
+	conf[CanonicalizationKey] = "relaxed/relaxed"
+	dkim, _ = New(conf, dkimSamplePEMData)
+
+	_, body, err := ReadEML([]byte(dkimSampleEML1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if x := string(dkim.canonicalBody(body)); x != " C\r\nD E\r\n" {
+		t.Fatal(x)
+	}
+
+	conf[CanonicalizationKey] = "relaxed/simple"
+	if x := string(dkim.canonicalBody(body)); x != " C \r\nD \t E\r\n" {
+		t.Fatal(x)
+	}
+
+	_, body, err = ReadEML([]byte(dkimSampleEML2))
+	if err != nil {
+		t.Fatal(err)
+	}
+	conf[CanonicalizationKey] = "relaxed/simple"
+	if x := string(dkim.canonicalBody(body)); x != "Hi.\r\n\r\nWe lost the game. Are you hungry yet?\r\n\r\nJoe.\r\n" {
+		t.Fatal(x)
+	}
+
+	_, body, err = ReadEML([]byte(dkimSampleEML3))
+	if err != nil {
+		t.Fatal(err)
+	}
+	conf[CanonicalizationKey] = "relaxed/relaxed"
+	if x := string(dkim.canonicalBody(body)); x != "This is the body of the message.=0D=0AThis is the second line\r\n" {
+		t.Fatal(x)
+	}
+}
+
+func TestCanonicalBodyHash(t *testing.T) {
+	conf, _ := NewConf("domain", "selector")
+	conf[CanonicalizationKey] = "relaxed/simple"
+
+	dkim, _ := New(conf, dkimSamplePEMData)
+
+	_, body2, err := ReadEML([]byte(dkimSampleEML2))
+	if err != nil {
+		t.Fatal(err)
+	}
+	enc := base64.StdEncoding
+	if x := enc.EncodeToString(dkim.canonicalBodyHash(body2)); x != "2jUSOH9NhtVGCQWNr9BrIAPreKQjO6Sn7XIkfJVOzv8=" {
+		t.Fatal(x)
+	}
+
+	_, body, err := ReadEML([]byte(dkimSampleEML3))
+	if err != nil {
+		t.Fatal(err)
+	}
+	conf[CanonicalizationKey] = "relaxed/relaxed"
+	if x := enc.EncodeToString(dkim.canonicalBodyHash(body)); x != "vrfP/4tQvd9QIewLlBjIlqsKMPwXXKj66neZg/smWSc=" {
+		t.Fatal(x)
+	}
+
+	// Simple canonical empty body
+	conf[CanonicalizationKey] = "relaxed/simple"
+	if x := enc.EncodeToString(dkim.canonicalBodyHash([]byte(""))); x != "frcCV1k9oG9oKj3dpUqdJg1PxRT2RSN/XKdLCPjaYaY=" {
+		t.Fatal(x)
+	}
+
+	// Relaxed canonical empty body
+	conf[CanonicalizationKey] = "relaxed/relaxed"
+	if x := enc.EncodeToString(dkim.canonicalBodyHash([]byte(""))); x != "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=" {
+		t.Fatal(x)
+	}
+}
+
+func dkimSignable() *DKIM {
 	conf, _ := NewConf("s3ig.com", "dkim")
 	conf[CanonicalizationKey] = "relaxed/relaxed"
 	conf[TimestampKey] = "1299753716"
-	dkim, _ := New(dkimSampleEML3, conf, dkimSamplePEMData)
+	dkim, _ := New(conf, dkimSamplePEMData)
 	dkim.signableHeaders = []string{
 		"Content-Type",
 		"From",
@@ -68,94 +169,14 @@ var dkimSignable *DKIM = func() *DKIM {
 		"To",
 	}
 	return dkim
-}()
-
-func TestNew(t *testing.T) {
-	dkim, err := New("", Conf{}, nil)
-	if err == nil {
-		t.Fatal("error nil")
-	}
-	if dkim != nil {
-		t.Fatal("dkim not nil")
-	}
-	dkim, err = New("data", Conf{}, nil)
-	if err == nil {
-		t.Fatal("error nil")
-	}
-	conf, err := NewConf("domain", "selector")
-	if err != nil {
-		t.Fatal("error not nil", err)
-	}
-	dkim, err = New("data", conf, nil)
-	if err == nil {
-		t.Fatal("error nil")
-	}
-	dkim, err = New("data", conf, dkimSamplePEMData)
-	if err != nil {
-		t.Fatal("error not nil", err)
-	}
-}
-
-func TestCanonicalBody(t *testing.T) {
-	dkim := &DKIM{}
-	body := dkim.canonicalBody()
-	if body != "\r\n" {
-		t.Fatal("uninitialized struct should yield CRLF body", body)
-	}
-	conf, _ := NewConf("domain", "selector")
-	conf[CanonicalizationKey] = "relaxed/relaxed"
-	dkim, _ = New(dkimSampleEML1, conf, dkimSamplePEMData)
-	if dkim.canonicalBody() != " C\r\nD E\r\n" {
-		t.Fatal("invalid canonical body", dkim.canonicalBody())
-	}
-	conf[CanonicalizationKey] = "relaxed/simple"
-	dkim, _ = New(dkimSampleEML1, conf, dkimSamplePEMData)
-	if dkim.canonicalBody() != " C \r\nD \t E\r\n" {
-		t.Fatal("invalid canonical body", dkim.canonicalBody())
-	}
-	conf[CanonicalizationKey] = "relaxed/simple"
-	dkim, _ = New(dkimSampleEML2, conf, dkimSamplePEMData)
-	if dkim.canonicalBody() != "Hi.\r\n\r\nWe lost the game. Are you hungry yet?\r\n\r\nJoe.\r\n" {
-		t.Fatal("invalid canonical body", dkim.canonicalBody())
-	}
-	conf[CanonicalizationKey] = "relaxed/relaxed"
-	dkim, _ = New(dkimSampleEML3, conf, dkimSamplePEMData)
-	if dkim.canonicalBody() != "This is the body of the message.=0D=0AThis is the second line\r\n" {
-		t.Fatal("invalid canonical body", dkim.canonicalBody())
-	}
-}
-
-func TestCanonicalBodyHash(t *testing.T) {
-	conf, _ := NewConf("domain", "selector")
-	conf[CanonicalizationKey] = "relaxed/simple"
-	dkim, _ := New(dkimSampleEML2, conf, dkimSamplePEMData)
-	b64hash := base64.StdEncoding.EncodeToString(dkim.canonicalBodyHash())
-	if b64hash != "2jUSOH9NhtVGCQWNr9BrIAPreKQjO6Sn7XIkfJVOzv8=" {
-		t.Fatal("invalid canonical body hash", b64hash)
-	}
-	conf[CanonicalizationKey] = "relaxed/relaxed"
-	dkim, _ = New(dkimSampleEML3, conf, dkimSamplePEMData)
-	b64hash = base64.StdEncoding.EncodeToString(dkim.canonicalBodyHash())
-	if b64hash != "vrfP/4tQvd9QIewLlBjIlqsKMPwXXKj66neZg/smWSc=" {
-		t.Fatal("invalid canonical body hash", b64hash)
-	}
-	conf[CanonicalizationKey] = "relaxed/simple"
-	emptyBodyEML := strings.Split(dkimSampleEML2, "\r\n\r\n")[0] + "\r\n\r\n"
-	dkim, _ = New(emptyBodyEML, conf, dkimSamplePEMData)
-	b64hash = base64.StdEncoding.EncodeToString(dkim.canonicalBodyHash())
-	if b64hash != "frcCV1k9oG9oKj3dpUqdJg1PxRT2RSN/XKdLCPjaYaY=" {
-		t.Fatal("invalid canonical body hash", b64hash)
-	}
-	conf[CanonicalizationKey] = "relaxed/relaxed"
-	dkim, _ = New(emptyBodyEML, conf, dkimSamplePEMData)
-	b64hash = base64.StdEncoding.EncodeToString(dkim.canonicalBodyHash())
-	if b64hash != "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=" {
-		t.Fatal("invalid canonical body hash", b64hash)
-	}
 }
 
 func TestSignableHeaderBlock(t *testing.T) {
-	block := dkimSignable.signableHeaderBlock()
+	header, body, err := ReadEML([]byte(dkimSampleEML3))
+	if err != nil {
+		t.Fatal(err)
+	}
+	block := dkimSignable().signableHeaderBlock(header, body)
 	expect := "content-type:text/plain; charset=us-ascii\r\n" +
 		"from:aws@s3ig.com\r\n" +
 		"subject:dkim test email\r\n" +
@@ -170,7 +191,11 @@ func TestSignableHeaderBlock(t *testing.T) {
 }
 
 func TestSignature(t *testing.T) {
-	sig, err := dkimSignable.signature()
+	header, body, err := ReadEML([]byte(dkimSampleEML3))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sig, err := dkimSignable().signature(header, body)
 	if err != nil {
 		t.Fatal("error not nil", err)
 	}
@@ -180,7 +205,7 @@ func TestSignature(t *testing.T) {
 }
 
 func TestSignedEML(t *testing.T) {
-	eml, err := dkimSignable.SignedEML()
+	signed, err := dkimSignable().Sign([]byte(dkimSampleEML3))
 	if err != nil {
 		t.Fatal("error not nil", err)
 	}
@@ -200,7 +225,7 @@ func TestSignedEML(t *testing.T) {
 		"\r\n" +
 		"This is the body of \t the message.=0D=0AThis is the second line\r\n" +
 		"\r\n"
-	if eml != expect {
-		t.Fatal("signed EML invalid", eml)
+	if x := string(signed); x != expect {
+		t.Fatal(x, "\n----\n", expect)
 	}
 }

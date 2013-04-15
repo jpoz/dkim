@@ -90,12 +90,11 @@ func (d *DKIM) canonicalBodyHash(body []byte) []byte {
 }
 
 func (d *DKIM) signableHeaderBlock(header, body []byte) string {
-	headerList, _ := ParseHeaderList(header)
-
+	headerList := ParseHeaderList(header)
 	signableHeaderList := make(HeaderList, 0, len(headerList)+1)
+
 	for _, k := range d.signableHeaders {
-		h, ok := headerList.Get(k)
-		if ok {
+		if h := headerList.Get(k); h != "" {
 			signableHeaderList = append(signableHeaderList, h)
 		}
 	}
@@ -103,10 +102,7 @@ func (d *DKIM) signableHeaderBlock(header, body []byte) string {
 	d.conf[BodyHashKey] = base64.StdEncoding.EncodeToString(d.canonicalBodyHash(body))
 	d.conf[FieldsKey] = signableHeaderList.Fields()
 
-	signableHeaderList = append(signableHeaderList, &Header{
-		SignatureHeaderKey,
-		d.conf.String(),
-	})
+	signableHeaderList = append(signableHeaderList, NewHeader(SignatureHeaderKey, d.conf.String()))
 
 	// According to RFC6376 http://tools.ietf.org/html/rfc6376#section-3.7
 	// the DKIM header must be inserted without a trailing <CRLF>.
@@ -138,16 +134,17 @@ func (d *DKIM) Sign(eml []byte) (signed []byte, err error) {
 		return
 	}
 	d.conf[SignatureDataKey] = sig
-	headerList, _ := ParseHeaderList(header)
+	headerList := ParseHeaderList(header)
 
 	// Append the signature header. Keep in mind these are raw values,
 	// so we add a <SP> character before the key-value list
-	headerList = append(headerList, &Header{SignatureHeaderKey, " " + d.conf.String()})
+	headerList = append(headerList, NewHeader(SignatureHeaderKey, d.conf.String()))
 	signedHeader := headerList.Canonical(false)
 
 	signed = []byte(strings.Join([]string{
 		signedHeader,
 		string(body),
 	}, "\r\n"))
+
 	return
 }

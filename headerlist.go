@@ -2,49 +2,43 @@ package dkim
 
 import (
 	"bytes"
-	"fmt"
 	"regexp"
 	"strings"
 )
 
-type HeaderList []*Header
+type HeaderList []Header
 
 var continuedHeaderRx = regexp.MustCompile(`^[ \t]`)
 
-func ParseHeaderList(header []byte) (HeaderList, error) {
+func ParseHeaderList(header []byte) (list HeaderList) {
 	lines := bytes.Split(header, []byte("\r\n"))
-	list := make(HeaderList, 0, len(lines))
+	list = make(HeaderList, 0, len(lines))
 	lastHeader := -1
 	for _, v := range lines {
 		if continuedHeaderRx.Match(v) && lastHeader >= 0 {
-			list[lastHeader].RawValue += "\r\n" + string(v)
+			list[lastHeader] += Header("\r\n" + string(v))
 		} else {
-			h, err := ParseHeader(string(v))
-			if err == nil {
-				lastHeader = len(list)
-				list = append(list, h)
-			}
+			lastHeader = len(list)
+			list = append(list, Header(v))
 		}
 	}
-	if len(list) == 0 {
-		return nil, fmt.Errorf("could not read header lines")
-	}
-	return list, nil
+	return
 }
 
-func (l HeaderList) Get(key string) (*Header, bool) {
+func (l HeaderList) Get(key string) (h Header) {
 	for _, v := range l {
-		if strings.ToLower(v.Key()) == strings.ToLower(key) {
-			return v, true
+		if v.Key(true) == strings.ToLower(key) {
+			h = v
+			return
 		}
 	}
-	return nil, false
+	return
 }
 
 func (l HeaderList) Fields() string {
 	a := make([]string, 0, len(l))
 	for _, v := range l {
-		k := v.Key()
+		k := v.Key(false)
 		if strings.ToLower(k) != strings.ToLower(SignatureHeaderKey) {
 			a = append(a, k)
 		}

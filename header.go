@@ -6,38 +6,44 @@ import (
 	"strings"
 )
 
-type Header struct {
-	RawKey   string
-	RawValue string
+var headerRelaxRx = regexp.MustCompile(`\s+`)
+
+type Header string
+
+func NewHeader(key, value string) Header {
+	return Header(fmt.Sprintf("%s: %s", key, value))
 }
 
-func ParseHeader(headerLine string) (*Header, error) {
-	c := strings.SplitN(headerLine, ":", 2)
-	if len(c) == 2 {
-		return &Header{c[0], c[1]}, nil
+// Component returns the raw header component. Components are separated by colons.
+func (h Header) Component(i int) (c string) {
+	if c := strings.SplitN(string(h), ":", 2); len(c) > i {
+		return c[i]
 	}
-	return nil, fmt.Errorf("could not parse header; malformed")
+	return ""
 }
 
-func (h *Header) Key() string {
-	return strings.TrimSpace(h.RawKey)
-}
-
-func (h *Header) Value() string {
-	return strings.TrimSpace(h.RawValue)
-}
-
-func (h *Header) RelaxedKey() string {
-	return strings.ToLower(h.Key())
-}
-
-func (h *Header) RelaxedValue() string {
-	return strings.TrimSpace(regexp.MustCompile(`\s+`).ReplaceAllString(h.RawValue, " "))
-}
-
-func (h *Header) Canonical(relaxed bool) string {
-	if relaxed {
-		return h.RelaxedKey() + ":" + h.RelaxedValue()
+// Key returns the (relaxed) key with leading and trailing whitespace trimmed.
+func (h Header) Key(relax bool) string {
+	key := h.Component(0)
+	if relax {
+		return strings.ToLower(strings.TrimSpace(key))
 	}
-	return h.RawKey + ":" + h.RawValue
+	return strings.TrimSpace(key)
+}
+
+// Value returns the (relaxed) value with leading and trailing whitespace trimmed
+func (h Header) Value(relax bool) string {
+	value := h.Component(1)
+	if relax {
+		return strings.TrimSpace(headerRelaxRx.ReplaceAllString(value, " "))
+	}
+	return strings.TrimSpace(value)
+}
+
+// Canonical returns the (relaxed) canonical header
+func (h Header) Canonical(relax bool) string {
+	if relax {
+		return h.Key(relax) + ":" + h.Value(relax)
+	}
+	return string(h)
 }

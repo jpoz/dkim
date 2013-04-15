@@ -18,82 +18,60 @@ func TestParseHeaderList(t *testing.T) {
 	if err != nil {
 		t.Fatal("error not nil", err)
 	}
-	list, err := ParseHeaderList(header)
-	if err != nil {
-		t.Fatal("error not nil", err)
+	list := ParseHeaderList(header)
+	if x := len(list); x != 2 {
+		t.Fatal(x)
 	}
-	if len(list) != 2 {
-		t.Fatal("failed to parse header list")
+	if x := list[0]; x != "A: X" {
+		t.Fatal(x)
 	}
-	a := list[0]
-	v := a.RawKey + ":" + a.RawValue
-	if v != "A: X" {
-		t.Fatal("wrong value", v)
-	}
-	b := list[1]
-	v = b.RawKey + ":" + b.RawValue
-	if v != "B : Y\t\r\n\tZ  " {
-		t.Fatal("wrong value", v)
+	if x := list[1]; x != "B : Y\t\r\n\tZ  " {
+		t.Fatal(x)
 	}
 }
 
 func TestGet(t *testing.T) {
 	list := HeaderList{
-		&Header{" A\t", "X y"},
-		&Header{" b\t", " z"},
+		Header(" A\t:X y"),
+		Header(" b\t: z"),
 	}
-	a, ok := list.Get("A")
-	if !ok {
-		t.Fatal("could not get header")
+	if x := list.Get("A").Component(1); x != "X y" {
+		t.Fatal(x)
 	}
-	if a.RawValue != "X y" {
-		t.Fatal("wrong value", a.RawValue)
+	if x := list.Get("B").Component(1); x != " z" {
+		t.Fatal(x)
 	}
-	b, ok := list.Get("B")
-	if !ok {
-		t.Fatal("could not get header")
-	}
-	if b.RawValue != " z" {
-		t.Fatal("wrong value", b.RawValue)
-	}
-	c, ok := list.Get("C")
-	if ok {
-		t.Fatal("should not exist")
-	}
-	if c != nil {
-		t.Fatal("should not return value")
+	if x := list.Get("C"); x != "" {
+		t.Fatal(x)
 	}
 }
 
 func TestFields(t *testing.T) {
 	list := HeaderList{
-		&Header{" A\t", "X y"},
-		&Header{" b\t", " z"},
+		Header(" A\t:X y"),
+		Header(" b\t: z"),
 	}
-	fields := list.Fields()
-	if fields != "A:b" {
-		t.Fatal("wrong fields", fields)
+
+	if x := list.Fields(); x != "A:b" {
+		t.Fatal(x)
 	}
 }
 
 func TestCanonical2(t *testing.T) {
 	header, _, err := ReadEML(headerListSample)
 	if err != nil {
-		t.Fatal("error not nil", err)
+		t.Fatal(err)
 	}
-	list, err := ParseHeaderList(header)
-	if err != nil {
-		t.Fatal("error not nil", err)
-	}
-	if len(list) != 2 {
-		t.Fatal("wrong header list count", len(list))
+	list := ParseHeaderList(header)
+	if x := len(list); x != 2 {
+		t.Fatal(x)
 	}
 	simple := list.Canonical(false)
 	if simple != "A: X\r\nB : Y\t\r\n\tZ  \r\n" {
-		t.Fatal("wrong simple canonical value", simple)
+		t.Fatal(simple)
 	}
 	relaxed := list.Canonical(true)
 	if relaxed != "a:X\r\nb:Y Z\r\n" {
-		t.Fatal("wrong relaxed canonical value", relaxed)
+		t.Fatal(relaxed)
 	}
 }

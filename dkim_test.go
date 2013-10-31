@@ -2,6 +2,7 @@ package dkim
 
 import (
 	"encoding/base64"
+	"fmt"
 	"testing"
 )
 
@@ -186,7 +187,9 @@ func TestSignableHeaderBlock(t *testing.T) {
 		" bh=vrfP/4tQvd9QIewLlBjIlqsKMPwXXKj66neZg/smWSc=;" +
 		" h=Content-Type:From:Subject:To; b="
 	if block != expect {
-		t.Fatal("signable header block invalid", block)
+		t.Fatal(fmt.Sprintf("signable header block invalid:\n\n%q\n\nshould be\n\n%q",
+			block,
+			expect))
 	}
 }
 

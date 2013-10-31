@@ -2,16 +2,25 @@ package dkim
 
 import (
 	"bytes"
-	"errors"
+	"fmt"
+	"net/mail"
 )
 
 func splitEML(eml []byte) (header, body []byte, err error) {
-	if c := bytes.SplitN(eml, []byte("\r\n\r\n"), 2); len(c) == 2 {
-		return c[0], c[1], nil
+	r := bytes.NewReader(eml)
+	msg, err := mail.ReadMessage(r)
+	if err != nil {
+		return header, body, err
 	}
-	if c := bytes.SplitN(eml, []byte("\n\n"), 2); len(c) == 2 {
-		return c[0], c[1], nil
+
+	header_buf := bytes.NewBuffer([]byte{})
+	for k, v := range msg.Header {
+		s := fmt.Sprintf("%s: %s\n", k, v[0])
+		header_buf.Write([]byte(s))
 	}
-	err = errors.New("could not read header block")
-	return
+
+	body_buf := new(bytes.Buffer)
+	body_buf.ReadFrom(msg.Body)
+
+	return header_buf.Bytes(), body_buf.Bytes(), nil
 }

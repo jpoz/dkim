@@ -59,10 +59,6 @@ func New(conf Conf, keyPEM []byte) (d *DKIM, err error) {
 }
 
 func (d *DKIM) canonicalBody(msg *mail.Message) []byte {
-	/* if msg == nil { */
-	/* 	return []byte("") */
-	/* } */
-
 	buf := new(bytes.Buffer)
 	if msg.Body != nil {
 		buf.ReadFrom(msg.Body)

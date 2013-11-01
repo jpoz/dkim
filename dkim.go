@@ -59,8 +59,14 @@ func New(conf Conf, keyPEM []byte) (d *DKIM, err error) {
 }
 
 func (d *DKIM) canonicalBody(msg *mail.Message) []byte {
+	/* if msg == nil { */
+	/* 	return []byte("") */
+	/* } */
+
 	buf := new(bytes.Buffer)
-	buf.ReadFrom(msg.Body)
+	if msg.Body != nil {
+		buf.ReadFrom(msg.Body)
+	}
 	body := buf.Bytes()
 
 	if d.conf.RelaxedBody() {
@@ -112,11 +118,12 @@ func (d *DKIM) signableHeaderBlock(msg *mail.Message) string {
 	d.conf[FieldsKey] = strings.Join(signableHeaderKeys, ":")
 
 	signableHeaderList[SignatureHeaderKey] = []string{d.conf.String()}
+	signableHeaderKeys = append(signableHeaderKeys, SignatureHeaderKey)
 
 	relax := d.conf.RelaxedHeader()
 	canonical := make([]string, 0, len(signableHeaderKeys))
 	for _, k := range signableHeaderKeys {
-		v := signableHeaderList.Get(k)
+		v := signableHeaderList[k][0]
 		if relax {
 			v = headerRelaxRx.ReplaceAllString(v, " ")
 			k = strings.ToLower(k)
@@ -145,6 +152,14 @@ func (d *DKIM) signature(msg *mail.Message) (string, error) {
 
 func (d *DKIM) Sign(eml []byte) (signed []byte, err error) {
 	msg, err := readEML(eml)
+
+	body := new(bytes.Buffer)
+	body.ReadFrom(msg.Body)
+	bodyb := body.Bytes()
+
+	// Replace the Reader
+	msg.Body = body
+
 	if err != nil {
 		return
 	}
@@ -156,15 +171,17 @@ func (d *DKIM) Sign(eml []byte) (signed []byte, err error) {
 
 	// Append the signature header. Keep in mind these are raw values,
 	// so we add a <SP> character before the key-value list
-	msg.Header[SignatureHeaderKey] = []string{d.conf.String()}
+	/* msg.Header[SignatureHeaderKey] = []string{d.conf.String()} */
 
 	buf := new(bytes.Buffer)
 	for k, _ := range msg.Header {
-		s := k + ": " + msg.Header.Get(k) + "\n"
+		s := k + ": " + msg.Header.Get(k) + "\r\n"
 		buf.Write([]byte(s))
 	}
 
-	buf.ReadFrom(msg.Body)
+	buf.Write([]byte(SignatureHeaderKey + ":" + d.conf.String()))
+	buf.Write([]byte("\r\n\r\n"))
+	buf.Write(bodyb)
 
 	signed = buf.Bytes()
 

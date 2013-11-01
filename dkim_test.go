@@ -1,6 +1,7 @@
 package dkim
 
 import (
+	"bytes"
 	"encoding/base64"
 	"fmt"
 	"testing"
@@ -229,7 +230,13 @@ func TestSignedEML(t *testing.T) {
 		}
 	}
 
-	/* if x := string(signed); x != expect { */
-	/* 	t.Fatalf("\n%q\n----\n%q", x, expect) */
-	/* } */
+	ebuf := new(bytes.Buffer)
+	ebuf.ReadFrom(expectMsg.Body)
+
+	xbuf := new(bytes.Buffer)
+	xbuf.ReadFrom(xMsg.Body)
+
+	if ebuf.String() != xbuf.String() {
+		t.Fatalf("\n%q\n----\n%q", xbuf.String(), ebuf.String())
+	}
 }
